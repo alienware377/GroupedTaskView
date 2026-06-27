@@ -1,0 +1,22 @@
+# Build output
+build/
+*.obj
+*.res
+*.exe
+*.exp
+*.lib
+*.pdb
+*.ilk
+
+# Keep the generated assets tracked
+!assets/*.png
+!assets/*.ico
+
+# Editors / IDE
+.vs/
+*.user
+.vscode/
+
+# OS
+Thumbs.db
+desktop.ini
