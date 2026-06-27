@@ -84,6 +84,10 @@ private:
     int SubCloseAtPoint(POINT pt) const;
     int DesktopAtPoint(POINT pt) const;
 
+    void BeginDrag();   // lift the dragged thumbnail off its tile
+    void EndDrag();     // stop the lift animation / floating state
+    RECT DragFloatRect() const; // current floating rect of the dragged thumbnail
+
     void MoveSelection(int dx, int dy, bool expandedSpace);
     void ActivateGroupOrExpand(int cell);
     void Expand(int group);
@@ -130,4 +134,7 @@ private:
     int m_dragIndex = -1; // group cell index, or expanded sub index
     POINT m_dragStart{};
     POINT m_dragPos{};
+    HWND m_dragHwnd = nullptr; // the window whose live thumbnail floats with the cursor
+    RECT m_dragOrigBody{}; // the tile body the dragged thumbnail lifted from
+    double m_dragAnim = 0.0; // 0..1 lift animation (tile -> floating)
 };

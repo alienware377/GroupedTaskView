@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "TrayIcon.h"
 #include "resource.h"
+#include "SettingsWindow.h"
 
 namespace
 {
@@ -8,6 +9,7 @@ namespace
     constexpr UINT WM_ATG_TRAY = WM_APP + 100;
     constexpr UINT ID_TRAY_EXIT = 1;
     constexpr UINT ID_TRAY_TITLE = 2;
+    constexpr UINT ID_TRAY_SETTINGS = 3;
 }
 
 bool TrayIcon::Create(HINSTANCE hinstance, DWORD mainThreadId)
@@ -78,6 +80,10 @@ LRESULT TrayIcon::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         {
             PostThreadMessageW(m_mainThreadId, WM_QUIT, 0, 0);
         }
+        else if (LOWORD(wParam) == ID_TRAY_SETTINGS)
+        {
+            ShowSettingsWindow(m_hinstance);
+        }
         return 0;
 
     default:
@@ -93,6 +99,7 @@ void TrayIcon::ShowMenu()
     HMENU menu = CreatePopupMenu();
     AppendMenuW(menu, MF_STRING | MF_GRAYED, ID_TRAY_TITLE, L"Grouped Task View — running");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING, ID_TRAY_SETTINGS, L"Settings…");
     AppendMenuW(menu, MF_STRING, ID_TRAY_EXIT, L"Exit");
 
     // Required so the menu dismisses correctly when the user clicks elsewhere.

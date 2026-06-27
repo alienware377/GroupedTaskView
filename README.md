@@ -25,7 +25,8 @@ Windows' built-in **Task View** (<kbd>Win</kbd>+<kbd>Tab</kbd>) shows every wind
 - 🖼️ **Live window thumbnails** — real-time DWM previews, sized to each window's aspect ratio (no stretching).
 - 🌫️ **Acrylic blurred backdrop** — a smooth, saturated, frosted blur of your wallpaper.
 - 🪟 **All virtual desktops** — switch to any window on any desktop; a desktop strip with live previews runs along the bottom.
-- ↪️ **Drag to another desktop** — drag a window, or a whole app group, onto a desktop in the strip to move it there.
+- ↪️ **Drag to another desktop** — drag a window, or a whole app group, onto a desktop in the strip to move it there (the live thumbnail lifts off and follows the cursor).
+- ✏️ **Rename groups & custom grouping** — right-click a group to rename it, or open **Settings** to define your own rules (merge several apps into one group, or rename any group). Rules persist across restarts.
 - ⌨️🖱️ **Keyboard and mouse** — arrow keys / Tab to move, Enter or click to switch, click the ✕ to close a window, click a desktop to jump to it.
 - 🪶 **Tiny and self-contained** — a single ~250 KB executable, no runtime or dependencies, no telemetry.
 - 🔔 **System tray icon** — quit anytime from the notification area.
@@ -48,7 +49,12 @@ Windows' built-in **Task View** (<kbd>Win</kbd>+<kbd>Tab</kbd>) shows every wind
 | Click the **✕** | Close that window |
 | Click a desktop | Switch to it ( **＋** creates a new one ) |
 | Drag a tile onto a desktop | Move that window / app group to that desktop |
+| Right-click a group | Rename it, or open Settings |
 | <kbd>Esc</kbd> | Close without switching |
+
+## Customize grouping
+
+Right-click any group and choose **Rename**, or open **Settings** from the tray icon. A rule matches any window whose app name or `.exe` **contains** the *Match* text and places it in the named group. Use one rule to rename a single app's group, or give several rules the **same Group name** to merge those apps into one group. Rules are saved to `%LOCALAPPDATA%\GroupedTaskView\settings.ini`.
 
 ## How it works
 

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "AppGrouping.h"
+#include "Settings.h"
 
 #include <propkey.h>
 #include <propsys.h>
@@ -182,9 +183,21 @@ std::vector<AppGroup> AppGrouping::Group(std::vector<WindowInfo> windows)
     std::vector<AppGroup> groups;
     std::unordered_map<std::wstring, size_t> indexByKey;
 
+    // User-defined rename / custom-grouping rules.
+    const std::vector<GroupRule> rules = Settings::LoadRules();
+
     for (auto& window : windows)
     {
         ResolveIdentity(window);
+        const std::wstring originalName = window.appName; // for authoring rename rules
+
+        // A matching rule overrides the app's group key + display name.
+        std::wstring ruleKey, ruleName;
+        if (Settings::ApplyRules(rules, window.appKey, window.appName, ruleKey, ruleName))
+        {
+            window.appKey = ruleKey;
+            window.appName = ruleName;
+        }
 
         auto it = indexByKey.find(window.appKey);
         if (it == indexByKey.end())
@@ -192,6 +205,7 @@ std::vector<AppGroup> AppGrouping::Group(std::vector<WindowInfo> windows)
             AppGroup group{};
             group.key = window.appKey;
             group.name = window.appName;
+            group.matchHint = originalName;
             group.icon = window.icon;
             indexByKey[window.appKey] = groups.size();
             group.windows.push_back(window);
