@@ -13,7 +13,7 @@ rc /nologo /fo build\app.res src\app.rc || exit /b 1
 echo === Compile: GroupedTaskView.exe ===
 cl /nologo /std:c++17 /EHsc /W3 /O2 /MT /DUNICODE /D_UNICODE /DNDEBUG /DGDIPVER=0x0110 ^
   src\main.cpp src\AltTabGrouped.cpp src\TaskView.cpp src\WindowEnumerator.cpp ^
-  src\AppGrouping.cpp src\VirtualDesktops.cpp src\TrayIcon.cpp build\app.res ^
+  src\AppGrouping.cpp src\VirtualDesktops.cpp src\TrayIcon.cpp src\DesktopMover.cpp build\app.res ^
   /Fo:build\ /Fe:build\GroupedTaskView.exe ^
   /link /SUBSYSTEM:WINDOWS gdiplus.lib dwmapi.lib user32.lib gdi32.lib shell32.lib ^
   shlwapi.lib ole32.lib oleaut32.lib version.lib uxtheme.lib winmm.lib advapi32.lib || exit /b 1

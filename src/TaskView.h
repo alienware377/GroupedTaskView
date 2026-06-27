@@ -91,6 +91,10 @@ private:
     void CommitWindow(HWND hwnd);
     void CloseWindowAt(int subIndex);
 
+    // Move windows to another virtual desktop (drag-and-drop onto the strip).
+    void MoveWindowsToDesktop(const std::vector<HWND>& windows, int desktopIndex);
+    void RefreshAfterMove();
+
     static void ActivateWindow(HWND hwnd);
 
     HINSTANCE m_hinstance = nullptr;
@@ -118,4 +122,12 @@ private:
     int m_hotSub = -1;
     int m_hotClose = -1;
     int m_hotDesktop = -1;
+
+    // Drag-and-drop (tile -> desktop strip) state.
+    bool m_mouseDown = false;
+    bool m_dragging = false;
+    bool m_dragIsSub = false;
+    int m_dragIndex = -1; // group cell index, or expanded sub index
+    POINT m_dragStart{};
+    POINT m_dragPos{};
 };
