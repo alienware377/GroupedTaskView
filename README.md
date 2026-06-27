@@ -25,6 +25,7 @@ Windows' built-in **Task View** (<kbd>Win</kbd>+<kbd>Tab</kbd>) shows every wind
 - 🖼️ **Live window thumbnails** — real-time DWM previews, sized to each window's aspect ratio (no stretching).
 - 🌫️ **Acrylic blurred backdrop** — a smooth, saturated, frosted blur of your wallpaper.
 - 🪟 **All virtual desktops** — switch to any window on any desktop; a desktop strip with live previews runs along the bottom.
+- ↪️ **Drag to another desktop** — drag a window, or a whole app group, onto a desktop in the strip to move it there.
 - ⌨️🖱️ **Keyboard and mouse** — arrow keys / Tab to move, Enter or click to switch, click the ✕ to close a window, click a desktop to jump to it.
 - 🪶 **Tiny and self-contained** — a single ~250 KB executable, no runtime or dependencies, no telemetry.
 - 🔔 **System tray icon** — quit anytime from the notification area.
@@ -46,6 +47,7 @@ Windows' built-in **Task View** (<kbd>Win</kbd>+<kbd>Tab</kbd>) shows every wind
 | <kbd>Enter</kbd> or click | Switch to the window (or expand a multi-window app) |
 | Click the **✕** | Close that window |
 | Click a desktop | Switch to it ( **＋** creates a new one ) |
+| Drag a tile onto a desktop | Move that window / app group to that desktop |
 | <kbd>Esc</kbd> | Close without switching |
 
 ## How it works

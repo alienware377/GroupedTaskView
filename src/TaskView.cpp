@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "TaskView.h"
 #include "WindowEnumerator.h"
+#include "DesktopMover.h"
 
 #include <windowsx.h>
 #include <climits>
@@ -1004,7 +1005,15 @@ void TaskView::Render()
                 g.DrawLine(&plus, r.left + DeskW / 2 - 12, r.top + DeskH / 2, r.left + DeskW / 2 + 12, r.top + DeskH / 2);
                 g.DrawLine(&plus, r.left + DeskW / 2, r.top + DeskH / 2 - 12, r.left + DeskW / 2, r.top + DeskH / 2 + 12);
             }
-            if (d.isCurrent)
+            // While dragging, the hovered desktop is a drop target.
+            if (m_dragging && i == m_hotDesktop && !d.isNew)
+            {
+                SolidBrush dropFill(Color(70, 0, 120, 215));
+                g.FillRectangle(&dropFill, r.left, r.top, DeskW, DeskH);
+                Pen dropPen(Color(255, 0, 120, 215), 3.5f);
+                StrokeRound(g, dropPen, r.left, r.top, DeskW, DeskH, 9);
+            }
+            else if (d.isCurrent)
             {
                 StrokeRound(g, accent, r.left, r.top, DeskW, DeskH, 9);
             }
@@ -1014,6 +1023,36 @@ void TaskView::Render()
             }
             RectF lbl(static_cast<REAL>(r.left), static_cast<REAL>(r.bottom + 3), static_cast<REAL>(DeskW), 22.0f);
             g.DrawString(d.name.c_str(), -1, &deskFont, lbl, &center, d.isCurrent ? &white : &dim);
+        }
+
+        // Drag ghost: a small chip (app icon + name) following the cursor.
+        if (m_dragging && m_dragIndex >= 0)
+        {
+            std::wstring label;
+            HICON icon = nullptr;
+            if (m_dragIsSub && m_expandedGroup >= 0 && m_dragIndex < static_cast<int>(m_groups[m_expandedGroup].windows.size()))
+            {
+                label = m_groups[m_expandedGroup].windows[m_dragIndex].title;
+                icon = m_groups[m_expandedGroup].windows[m_dragIndex].icon;
+            }
+            else if (!m_dragIsSub && m_dragIndex < static_cast<int>(m_cells.size()))
+            {
+                const AppGroup& grp = m_groups[m_cells[m_dragIndex].group];
+                label = grp.name;
+                icon = grp.icon;
+            }
+            const int gw = 230, gh = 46;
+            const int gx = m_dragPos.x + 16, gy = m_dragPos.y + 12;
+            SolidBrush chip(Color(235, 30, 32, 40));
+            FillRound(g, chip, gx, gy, gw, gh, 10);
+            Pen chipPen(Color(255, 0, 120, 215), 1.5f);
+            StrokeRound(g, chipPen, gx, gy, gw, gh, 10);
+            if (icon)
+            {
+                DrawIconEx(dc, gx + 10, gy + (gh - 24) / 2, icon, 24, 24, 0, nullptr, DI_NORMAL);
+            }
+            RectF lr(static_cast<REAL>(gx + 44), static_cast<REAL>(gy), static_cast<REAL>(gw - 52), static_cast<REAL>(gh));
+            g.DrawString(label.c_str(), -1, &titleFont, lr, &sf, &white);
         }
     }
 
@@ -1187,6 +1226,42 @@ void TaskView::CloseWindowAt(int subIndex)
     InvalidateRect(m_hwnd, nullptr, FALSE);
 }
 
+void TaskView::MoveWindowsToDesktop(const std::vector<HWND>& windows, int desktopIndex)
+{
+    if (desktopIndex < 0 || desktopIndex >= static_cast<int>(m_desktops.size()) || m_desktops[desktopIndex].isNew)
+    {
+        return;
+    }
+    // The public IVirtualDesktopManager::MoveWindowToDesktop is blocked for other
+    // processes' windows (E_ACCESSDENIED), so use the shell's internal interfaces.
+    MoveWindowsToVirtualDesktop(windows, m_desktops[desktopIndex].id);
+    RefreshAfterMove();
+}
+
+// Rebuild the model after a move so the desktop-strip previews and grouping
+// reflect the new state, keeping the overlay open.
+void TaskView::RefreshAfterMove()
+{
+    UnregisterThumbnails();
+    m_expandedGroup = -1;
+    m_subRects.clear();
+    BuildModel();
+    if (m_cells.empty())
+    {
+        Close();
+        return;
+    }
+    if (m_selCell >= static_cast<int>(m_cells.size()))
+    {
+        m_selCell = static_cast<int>(m_cells.size()) - 1;
+    }
+    m_hotDesktop = m_hotCell = -1;
+    LayoutGroups();
+    RegisterThumbnails();
+    BuildDesktopThumbnails();
+    InvalidateRect(m_hwnd, nullptr, FALSE);
+}
+
 LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -1223,10 +1298,73 @@ LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
     }
 
+    case WM_LBUTTONDOWN:
+    {
+        POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        m_mouseDown = false;
+        m_dragging = false;
+        m_dragIndex = -1;
+        if (m_expandedGroup >= 0)
+        {
+            const int sub = SubTileAtPoint(pt);
+            if (sub >= 0 && SubCloseAtPoint(pt) < 0) // don't drag from the close button
+            {
+                m_mouseDown = true; m_dragIsSub = true; m_dragIndex = sub;
+                m_dragStart = pt; m_dragPos = pt; SetCapture(hwnd);
+            }
+        }
+        else
+        {
+            const int cell = GroupCellAtPoint(pt);
+            if (cell >= 0)
+            {
+                m_mouseDown = true; m_dragIsSub = false; m_dragIndex = cell;
+                m_dragStart = pt; m_dragPos = pt; SetCapture(hwnd);
+            }
+        }
+        return 0;
+    }
+
+    case WM_SETCURSOR:
+        if (m_dragging)
+        {
+            SetCursor(LoadCursorW(nullptr, IDC_SIZEALL));
+            return TRUE;
+        }
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
+
+    case WM_CAPTURECHANGED:
+        m_mouseDown = false;
+        m_dragging = false;
+        m_dragIndex = -1;
+        return 0;
+
     case WM_MOUSEMOVE:
     {
         POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
         const int desk = DesktopAtPoint(pt);
+
+        // Drag in progress: track the cursor and the desktop drop target.
+        if (m_mouseDown)
+        {
+            if (!m_dragging)
+            {
+                const int dx = pt.x - m_dragStart.x, dy = pt.y - m_dragStart.y;
+                if (dx * dx + dy * dy > 100) // ~10px threshold
+                {
+                    m_dragging = true;
+                }
+            }
+            if (m_dragging)
+            {
+                m_dragPos = pt;
+                m_hotDesktop = desk;
+                SetCursor(LoadCursorW(nullptr, IDC_SIZEALL));
+                InvalidateRect(hwnd, nullptr, FALSE);
+                return 0;
+            }
+        }
+
         if (m_expandedGroup >= 0)
         {
             const int sub = SubTileAtPoint(pt);
@@ -1254,7 +1392,44 @@ LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_LBUTTONUP:
     {
         POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        const bool wasDragging = m_dragging;
+        const bool dragIsSub = m_dragIsSub;
+        const int dragIndex = m_dragIndex;
+        if (m_mouseDown) ReleaseCapture();
+        m_mouseDown = false;
+        m_dragging = false;
+        m_dragIndex = -1;
+
         const int desk = DesktopAtPoint(pt);
+
+        // A completed drag = drop the window(s) onto the target desktop.
+        if (wasDragging)
+        {
+            if (desk >= 0 && !m_desktops[desk].isNew)
+            {
+                std::vector<HWND> toMove;
+                if (dragIsSub && m_expandedGroup >= 0)
+                {
+                    if (dragIndex >= 0 && dragIndex < static_cast<int>(m_groups[m_expandedGroup].windows.size()))
+                        toMove.push_back(m_groups[m_expandedGroup].windows[dragIndex].hwnd);
+                }
+                else if (!dragIsSub && dragIndex >= 0 && dragIndex < static_cast<int>(m_cells.size()))
+                {
+                    for (const auto& w : m_groups[m_cells[dragIndex].group].windows)
+                        toMove.push_back(w.hwnd);
+                }
+                if (!toMove.empty())
+                {
+                    MoveWindowsToDesktop(toMove, desk);
+                    return 0;
+                }
+            }
+            m_hotDesktop = -1;
+            InvalidateRect(hwnd, nullptr, FALSE);
+            return 0;
+        }
+
+        // Otherwise it's a plain click.
         if (desk >= 0)
         {
             const bool isNew = m_desktops[desk].isNew;
