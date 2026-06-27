@@ -630,6 +630,32 @@ void TaskView::UpdateThumbnails()
             visible = true;
         }
 
+        // DWM stretches the source to fill rcDestination, which squishes windows
+        // whose aspect doesn't exactly match the tile. Fit the real source size
+        // (aspect-preserving, centered) so thumbnails are never distorted.
+        if (visible)
+        {
+            SIZE src{};
+            const int bw = dest.right - dest.left, bh = dest.bottom - dest.top;
+            if (bw > 0 && bh > 0 && SUCCEEDED(DwmQueryThumbnailSourceSize(t.thumb, &src)) && src.cx > 0 && src.cy > 0)
+            {
+                const double srcAspect = static_cast<double>(src.cx) / src.cy;
+                const double boxAspect = static_cast<double>(bw) / bh;
+                int fw = bw, fh = bh;
+                if (srcAspect > boxAspect)
+                {
+                    fh = static_cast<int>(bw / srcAspect + 0.5);
+                }
+                else
+                {
+                    fw = static_cast<int>(bh * srcAspect + 0.5);
+                }
+                const int cx = dest.left + (bw - fw) / 2;
+                const int cy = dest.top + (bh - fh) / 2;
+                dest = { cx, cy, cx + fw, cy + fh };
+            }
+        }
+
         DWM_THUMBNAIL_PROPERTIES props{};
         props.dwFlags = DWM_TNP_RECTDESTINATION | DWM_TNP_VISIBLE | DWM_TNP_OPACITY | DWM_TNP_SOURCECLIENTAREAONLY;
         props.fSourceClientAreaOnly = FALSE;
