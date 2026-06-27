@@ -265,11 +265,8 @@ void TaskView::Open()
     CaptureBlurredBackground();
 
     BuildModel();
-    if (m_cells.empty())
-    {
-        m_groups.clear();
-        return;
-    }
+    // Note: an empty current desktop still opens (showing the desktop strip), so
+    // Win+Tab works even on a desktop with no windows.
 
     m_expandedGroup = -1;
     m_selCell = 0;
@@ -323,14 +320,10 @@ void TaskView::BuildModel()
     auto desks = VirtualDesktops::Enumerate(current);
     m_currentDesktop = current;
 
-    // Keep windows that live on a real virtual desktop (any of them) or on the
-    // current desktop / pinned. This includes other-desktop windows while
-    // dropping suspended-UWP and hidden system UI that map to no real desktop.
-    IVirtualDesktopManager* vdm = nullptr;
-    CoCreateInstance(CLSID_VirtualDesktopManager, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&vdm));
-
-    const GUID curId = (current >= 0 && current < static_cast<int>(desks.size())) ? desks[current].id : GUID{};
-
+    // Show only windows on the CURRENT virtual desktop, like the native Task
+    // View. A window on another desktop is shell-cloaked (DWM_CLOAKED_SHELL), as
+    // is suspended-UWP / hidden system UI; an app-cloaked but on-screen window
+    // (e.g. a background browser window) is not, so it stays.
     auto windows = WindowEnumerator::Enumerate();
     {
         std::vector<WindowInfo> kept;
@@ -339,43 +332,12 @@ void TaskView::BuildModel()
         {
             int cloaked = 0;
             DwmGetWindowAttribute(win.hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
-            const bool shellCloaked = (cloaked & DWM_CLOAKED_SHELL) != 0;
-
-            bool keep;
-            if (!shellCloaked)
-            {
-                // Visible on the current desktop (or merely app-cloaked) -> real window.
-                keep = true;
-            }
-            else
-            {
-                // Shell-cloaked: keep only if it's a real window parked on ANOTHER
-                // desktop; drop suspended-UWP / hidden system UI (which map to the
-                // current desktop id or to no desktop at all).
-                keep = false;
-                GUID gid{};
-                if (vdm && SUCCEEDED(vdm->GetWindowDesktopId(win.hwnd, &gid)) && !IsEqualGUID(gid, curId))
-                {
-                    for (const auto& d : desks)
-                    {
-                        if (IsEqualGUID(d.id, gid))
-                        {
-                            keep = true;
-                            break;
-                        }
-                    }
-                }
-            }
-            if (keep)
+            if ((cloaked & DWM_CLOAKED_SHELL) == 0)
             {
                 kept.push_back(std::move(win));
             }
         }
         windows = std::move(kept);
-    }
-    if (vdm)
-    {
-        vdm->Release();
     }
 
     m_groups = AppGrouping::Group(std::move(windows));
@@ -1246,14 +1208,9 @@ void TaskView::RefreshAfterMove()
     m_expandedGroup = -1;
     m_subRects.clear();
     BuildModel();
-    if (m_cells.empty())
-    {
-        Close();
-        return;
-    }
     if (m_selCell >= static_cast<int>(m_cells.size()))
     {
-        m_selCell = static_cast<int>(m_cells.size()) - 1;
+        m_selCell = static_cast<int>(m_cells.size()) - 1; // -1 when empty; nav guards it
     }
     m_hotDesktop = m_hotCell = -1;
     LayoutGroups();
