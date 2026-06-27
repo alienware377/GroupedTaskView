@@ -474,6 +474,9 @@ std::vector<RECT> TaskView::JustifiedLayout(const std::vector<double>& aspects, 
     const int aw = area.right - area.left;
     const int ah = area.bottom - area.top;
     const int gap = 18;
+    // Cap how large a thumbnail can get (like the native Task View), so a desktop
+    // with only one or two windows shows them at a sensible size, not full-screen.
+    const double maxBodyH = ah * 0.36;
 
     // For a target body height bh, build rows (each scaled to fill width) and
     // return the total stacked height.
@@ -491,7 +494,7 @@ std::vector<RECT> TaskView::JustifiedLayout(const std::vector<double>& aspects, 
             {
                 const double s = (aw - static_cast<int>(cur.size() - 1) * gap) / sum;
                 rows.push_back(cur);
-                rowH.push_back(bh * s + titleBar);
+                rowH.push_back(std::min(bh * s, maxBodyH) + titleBar);
                 cur.clear();
             }
             cur.push_back(i);
@@ -503,7 +506,7 @@ std::vector<RECT> TaskView::JustifiedLayout(const std::vector<double>& aspects, 
             double s = (aw - static_cast<int>(cur.size() - 1) * gap) / sum;
             if (s > 1.0) s = 1.0; // don't blow up a short final row
             rows.push_back(cur);
-            rowH.push_back(bh * s + titleBar);
+            rowH.push_back(std::min(bh * s, maxBodyH) + titleBar);
         }
         double total = gap * (static_cast<int>(rows.size()) - 1);
         for (double r : rowH) total += r;
