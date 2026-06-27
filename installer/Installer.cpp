@@ -22,7 +22,7 @@ namespace
     const wchar_t kExeName[] = L"GroupedTaskView.exe";
     const wchar_t kProcName[] = L"GroupedTaskView.exe";
     const wchar_t kUninstallKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\GroupedTaskView";
-    const wchar_t kVersion[] = L"1.0.0";
+    const wchar_t kVersion[] = L"1.1.0";
 
     std::wstring KnownDir(REFKNOWNFOLDERID id)
     {

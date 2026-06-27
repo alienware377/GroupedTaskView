@@ -10,6 +10,7 @@ struct AppGroup
 {
     std::wstring key; // normalized app identity
     std::wstring name; // header text shown above the group
+    std::wstring matchHint; // original app name, used to author rename rules
     HICON icon = nullptr; // representative icon (not owned)
     std::vector<WindowInfo> windows; // windows in MRU order (front = most recent)
 };

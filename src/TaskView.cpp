@@ -2,6 +2,7 @@
 #include "TaskView.h"
 #include "WindowEnumerator.h"
 #include "DesktopMover.h"
+#include "SettingsWindow.h"
 
 #include <windowsx.h>
 #include <climits>
@@ -633,6 +634,13 @@ void TaskView::UpdateThumbnails()
             visible = true;
         }
 
+        // While dragging, the dragged window's thumbnail floats with the cursor.
+        if (m_dragging && m_dragHwnd && t.hwnd == m_dragHwnd)
+        {
+            dest = DragFloatRect();
+            visible = true;
+        }
+
         // DWM stretches the source to fill rcDestination, which squishes windows
         // whose aspect doesn't exactly match the tile. Fit the real source size
         // (aspect-preserving, centered) so thumbnails are never distorted.
@@ -888,6 +896,17 @@ void TaskView::Render()
             const int fw = front.right - front.left;
             const int fh = front.bottom - front.top;
 
+            // The dragged tile lifts off: leave its space empty (faint placeholder).
+            if (m_dragging && !m_dragIsSub && i == m_dragIndex)
+            {
+                SolidBrush hole(Color(60, 0, 0, 0));
+                FillRound(g, hole, front.left, front.top, fw, fh, 9);
+                Pen dash(Color(90, 150, 150, 160), 1.5f);
+                dash.SetDashStyle(DashStyleDash);
+                StrokeRound(g, dash, front.left, front.top, fw, fh, 9);
+                continue;
+            }
+
             // Back cards (peek up-right) convey the stack.
             for (int k = depth; k >= 1; --k)
             {
@@ -936,6 +955,17 @@ void TaskView::Render()
                 const RECT r = m_subRects[i];
                 const int tw = r.right - r.left, th = r.bottom - r.top;
                 const WindowInfo& win = m_groups[m_expandedGroup].windows[i];
+
+                // The dragged sub-tile lifts off: leave its space empty.
+                if (m_dragging && m_dragIsSub && i == m_dragIndex)
+                {
+                    SolidBrush hole(Color(70, 0, 0, 0));
+                    FillRound(g, hole, r.left, r.top, tw, th, 9);
+                    Pen dash(Color(90, 150, 150, 160), 1.5f);
+                    dash.SetDashStyle(DashStyleDash);
+                    StrokeRound(g, dash, r.left, r.top, tw, th, 9);
+                    continue;
+                }
 
                 FillRoundBottom(g, bodyBg, r.left, r.top + TitleBar, tw, th - TitleBar, 9);
                 acrylicTitle(r.left, r.top, tw);
@@ -1014,36 +1044,6 @@ void TaskView::Render()
             }
             RectF lbl(static_cast<REAL>(r.left), static_cast<REAL>(r.bottom + 3), static_cast<REAL>(DeskW), 22.0f);
             g.DrawString(d.name.c_str(), -1, &deskFont, lbl, &center, d.isCurrent ? &white : &dim);
-        }
-
-        // Drag ghost: a small chip (app icon + name) following the cursor.
-        if (m_dragging && m_dragIndex >= 0)
-        {
-            std::wstring label;
-            HICON icon = nullptr;
-            if (m_dragIsSub && m_expandedGroup >= 0 && m_dragIndex < static_cast<int>(m_groups[m_expandedGroup].windows.size()))
-            {
-                label = m_groups[m_expandedGroup].windows[m_dragIndex].title;
-                icon = m_groups[m_expandedGroup].windows[m_dragIndex].icon;
-            }
-            else if (!m_dragIsSub && m_dragIndex < static_cast<int>(m_cells.size()))
-            {
-                const AppGroup& grp = m_groups[m_cells[m_dragIndex].group];
-                label = grp.name;
-                icon = grp.icon;
-            }
-            const int gw = 230, gh = 46;
-            const int gx = m_dragPos.x + 16, gy = m_dragPos.y + 12;
-            SolidBrush chip(Color(235, 30, 32, 40));
-            FillRound(g, chip, gx, gy, gw, gh, 10);
-            Pen chipPen(Color(255, 0, 120, 215), 1.5f);
-            StrokeRound(g, chipPen, gx, gy, gw, gh, 10);
-            if (icon)
-            {
-                DrawIconEx(dc, gx + 10, gy + (gh - 24) / 2, icon, 24, 24, 0, nullptr, DI_NORMAL);
-            }
-            RectF lr(static_cast<REAL>(gx + 44), static_cast<REAL>(gy), static_cast<REAL>(gw - 52), static_cast<REAL>(gh));
-            g.DrawString(label.c_str(), -1, &titleFont, lr, &sf, &white);
         }
     }
 
@@ -1248,10 +1248,79 @@ void TaskView::RefreshAfterMove()
     InvalidateRect(m_hwnd, nullptr, FALSE);
 }
 
+void TaskView::BeginDrag()
+{
+    m_dragAnim = 0.0;
+    m_dragHwnd = nullptr;
+    if (m_dragIsSub)
+    {
+        if (m_expandedGroup >= 0 && m_dragIndex >= 0 && m_dragIndex < static_cast<int>(m_groups[m_expandedGroup].windows.size()))
+        {
+            m_dragHwnd = m_groups[m_expandedGroup].windows[m_dragIndex].hwnd;
+            if (m_dragIndex < static_cast<int>(m_subRects.size())) m_dragOrigBody = CellBody(m_subRects[m_dragIndex]);
+        }
+    }
+    else if (m_dragIndex >= 0 && m_dragIndex < static_cast<int>(m_cells.size()))
+    {
+        const int g = m_cells[m_dragIndex].group;
+        m_dragHwnd = m_groups[g].windows.front().hwnd;
+        const RECT cell = m_cells[m_dragIndex].rect;
+        const int depth = std::min(static_cast<int>(m_groups[g].windows.size()) - 1, MaxStack);
+        const RECT front{ cell.left, cell.top + depth * StackOff, cell.right - depth * StackOff, cell.bottom };
+        m_dragOrigBody = CellBody(front);
+    }
+    // Bring the dragged thumbnail to the top by re-registering it last.
+    for (auto& t : m_thumbs)
+    {
+        if (t.hwnd == m_dragHwnd && t.thumb)
+        {
+            DwmUnregisterThumbnail(t.thumb);
+            if (FAILED(DwmRegisterThumbnail(m_hwnd, t.hwnd, &t.thumb))) t.thumb = nullptr;
+            break;
+        }
+    }
+    SetTimer(m_hwnd, 1, 12, nullptr); // lift animation tick
+    UpdateThumbnails();
+}
+
+void TaskView::EndDrag()
+{
+    KillTimer(m_hwnd, 1);
+    m_dragHwnd = nullptr;
+    m_dragAnim = 0.0;
+}
+
+RECT TaskView::DragFloatRect() const
+{
+    const int ow = m_dragOrigBody.right - m_dragOrigBody.left;
+    const int oh = m_dragOrigBody.bottom - m_dragOrigBody.top;
+    const double sc = 0.55; // floating thumbnail is a shrunk copy
+    const int fw = std::max(40, static_cast<int>(ow * sc));
+    const int fh = std::max(30, static_cast<int>(oh * sc));
+    const RECT f{ m_dragPos.x - fw / 2, m_dragPos.y - fh / 2, m_dragPos.x + fw / 2, m_dragPos.y + fh / 2 };
+    const double a = m_dragAnim;
+    RECT d;
+    d.left = m_dragOrigBody.left + static_cast<LONG>((f.left - m_dragOrigBody.left) * a);
+    d.top = m_dragOrigBody.top + static_cast<LONG>((f.top - m_dragOrigBody.top) * a);
+    d.right = m_dragOrigBody.right + static_cast<LONG>((f.right - m_dragOrigBody.right) * a);
+    d.bottom = m_dragOrigBody.bottom + static_cast<LONG>((f.bottom - m_dragOrigBody.bottom) * a);
+    return d;
+}
+
 LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
+    case WM_TIMER:
+        if (wParam == 1 && m_dragging)
+        {
+            m_dragAnim += 0.18;
+            if (m_dragAnim >= 1.0) { m_dragAnim = 1.0; KillTimer(hwnd, 1); }
+            UpdateThumbnails();
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        return 0;
+
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
@@ -1320,6 +1389,7 @@ LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         return DefWindowProcW(hwnd, msg, wParam, lParam);
 
     case WM_CAPTURECHANGED:
+        if (m_dragging) { EndDrag(); UpdateThumbnails(); InvalidateRect(hwnd, nullptr, FALSE); }
         m_mouseDown = false;
         m_dragging = false;
         m_dragIndex = -1;
@@ -1339,6 +1409,8 @@ LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 if (dx * dx + dy * dy > 100) // ~10px threshold
                 {
                     m_dragging = true;
+                    m_dragPos = pt;
+                    BeginDrag();
                 }
             }
             if (m_dragging)
@@ -1346,6 +1418,7 @@ LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 m_dragPos = pt;
                 m_hotDesktop = desk;
                 SetCursor(LoadCursorW(nullptr, IDC_SIZEALL));
+                UpdateThumbnails();
                 InvalidateRect(hwnd, nullptr, FALSE);
                 return 0;
             }
@@ -1385,6 +1458,7 @@ LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         m_mouseDown = false;
         m_dragging = false;
         m_dragIndex = -1;
+        if (wasDragging) EndDrag();
 
         const int desk = DesktopAtPoint(pt);
 
@@ -1410,7 +1484,9 @@ LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     return 0;
                 }
             }
+            // Cancelled drop: restore the floated thumbnail to its tile.
             m_hotDesktop = -1;
+            UpdateThumbnails();
             InvalidateRect(hwnd, nullptr, FALSE);
             return 0;
         }
@@ -1436,6 +1512,41 @@ LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
         const int cell = GroupCellAtPoint(pt);
         if (cell >= 0) { ActivateGroupOrExpand(cell); }
+        return 0;
+    }
+
+    case WM_RBUTTONUP:
+    {
+        if (m_expandedGroup < 0)
+        {
+            POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            const int cell = GroupCellAtPoint(pt);
+            if (cell >= 0)
+            {
+                const AppGroup& grp = m_groups[m_cells[cell].group];
+                const std::wstring name = grp.name;
+                const std::wstring match = grp.matchHint.empty() ? grp.name : grp.matchHint;
+                const std::wstring renameLabel = L"Rename “" + name + L"”…";
+                HMENU menu = CreatePopupMenu();
+                AppendMenuW(menu, MF_STRING, 1, renameLabel.c_str());
+                AppendMenuW(menu, MF_STRING, 2, L"Settings…");
+                POINT scr = pt;
+                ClientToScreen(hwnd, &scr);
+                SetForegroundWindow(hwnd);
+                const int sel = TrackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_RETURNCMD, scr.x, scr.y, 0, hwnd, nullptr);
+                DestroyMenu(menu);
+                if (sel == 1)
+                {
+                    Close();
+                    ShowSettingsWindow(m_hinstance, match.c_str(), name.c_str());
+                }
+                else if (sel == 2)
+                {
+                    Close();
+                    ShowSettingsWindow(m_hinstance);
+                }
+            }
+        }
         return 0;
     }
 
