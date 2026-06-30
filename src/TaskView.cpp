@@ -21,6 +21,19 @@
 #define DWM_CLOAKED_SHELL 0x0000002
 #endif
 
+// Touch gesture status (from <tpcshrd.h>): lets a window tell the shell to skip
+// the "press and hold = right-click" detection, whose ~2s wait otherwise stalls
+// the start of a touch drag (the expanding ring you see before the tile moves).
+#ifndef WM_TABLET_QUERYSYSTEMGESTURESTATUS
+#define WM_TABLET_QUERYSYSTEMGESTURESTATUS 0x02CC
+#endif
+#ifndef TABLET_DISABLE_PRESSANDHOLD
+#define TABLET_DISABLE_PRESSANDHOLD      0x00000001
+#define TABLET_DISABLE_PENTAPFEEDBACK    0x00000008
+#define TABLET_DISABLE_PENBARRELFEEDBACK 0x00000010
+#define TABLET_DISABLE_FLICKS            0x00010000
+#endif
+
 using namespace Gdiplus;
 
 namespace
@@ -315,6 +328,7 @@ void TaskView::Close()
     m_visible = false;
     UnregisterThumbnails();
     ShowWindow(m_hwnd, SW_HIDE);
+    if (m_dragSceneBmp) { DeleteObject(m_dragSceneBmp); m_dragSceneBmp = nullptr; }
     InvalidateBackdropCache();
     if (m_background)
     {
@@ -818,6 +832,21 @@ void TaskView::Render()
     HBITMAP bmp = CreateCompatibleBitmap(screen, w, h);
     HBITMAP old = static_cast<HBITMAP>(SelectObject(dc, bmp));
 
+    PaintScene(dc, w, h);
+
+    BitBlt(screen, 0, 0, w, h, dc, 0, 0, SRCCOPY);
+    SelectObject(dc, old);
+    DeleteObject(bmp);
+    DeleteDC(dc);
+    ReleaseDC(m_hwnd, screen);
+}
+
+// Draws the entire overlay (backdrop, app stacks, desktop strip) into `dc`.
+// Factored out of Render so the same scene can be baked into the drag cache.
+void TaskView::PaintScene(HDC dc, int w, int h)
+{
+    HDC screen = dc; // a memory DC is fine for creating helper DCs/bitmaps
+
     // Blurred wallpaper as the backdrop, stretched to the client rect so it fills
     // exactly regardless of any DPI scaling (fall back to flat dark). The costly
     // HALFTONE stretch of the full-res wallpaper is done once into a client-sized
@@ -1082,12 +1111,6 @@ void TaskView::Render()
             g.DrawString(d.name.c_str(), -1, &deskFont, lbl, &center, d.isCurrent ? &white : &dim);
         }
     }
-
-    BitBlt(screen, 0, 0, w, h, dc, 0, 0, SRCCOPY);
-    SelectObject(dc, old);
-    DeleteObject(bmp);
-    DeleteDC(dc);
-    ReleaseDC(m_hwnd, screen);
 }
 
 int TaskView::GroupCellAtPoint(POINT pt) const
@@ -1317,11 +1340,76 @@ void TaskView::BeginDrag()
     }
     SetTimer(m_hwnd, 1, 12, nullptr); // lift animation tick
     UpdateThumbnails();
+    BuildDragScene(); // bake the now-static scene so each move is a cheap blit
+}
+
+// Render the full overlay once into an offscreen bitmap (minus the moving
+// drop-target highlight), so per-move painting during a drag is a single blit
+// plus one small highlight instead of redrawing every tile and the backdrop.
+void TaskView::BuildDragScene()
+{
+    if (m_dragSceneBmp) { DeleteObject(m_dragSceneBmp); m_dragSceneBmp = nullptr; }
+    RECT rc; GetClientRect(m_hwnd, &rc);
+    const int w = rc.right, h = rc.bottom;
+    if (w <= 0 || h <= 0) return;
+
+    HDC screen = GetDC(m_hwnd);
+    HDC dc = CreateCompatibleDC(screen);
+    m_dragSceneBmp = CreateCompatibleBitmap(screen, w, h);
+    HBITMAP old = static_cast<HBITMAP>(SelectObject(dc, m_dragSceneBmp));
+    const int savedHot = m_hotDesktop;
+    m_hotDesktop = -1; // the drop-target highlight is drawn per-move in DragPaint
+    PaintScene(dc, w, h);
+    m_hotDesktop = savedHot;
+    SelectObject(dc, old);
+    DeleteDC(dc);
+    ReleaseDC(m_hwnd, screen);
+    m_dragSceneW = w;
+    m_dragSceneH = h;
+}
+
+void TaskView::DragPaint()
+{
+    RECT rc; GetClientRect(m_hwnd, &rc);
+    const int w = rc.right, h = rc.bottom;
+    if (w <= 0 || h <= 0 || !m_dragSceneBmp || w != m_dragSceneW || h != m_dragSceneH)
+    {
+        Render();
+        return;
+    }
+    HDC screen = GetDC(m_hwnd);
+    HDC dc = CreateCompatibleDC(screen);
+    HBITMAP bmp = CreateCompatibleBitmap(screen, w, h);
+    HBITMAP old = static_cast<HBITMAP>(SelectObject(dc, bmp));
+
+    HDC sdc = CreateCompatibleDC(screen);
+    HBITMAP sold = static_cast<HBITMAP>(SelectObject(sdc, m_dragSceneBmp));
+    BitBlt(dc, 0, 0, w, h, sdc, 0, 0, SRCCOPY);
+    SelectObject(sdc, sold);
+    DeleteDC(sdc);
+
+    if (m_hotDesktop >= 0 && m_hotDesktop < static_cast<int>(m_desktops.size()) && !m_desktops[m_hotDesktop].isNew)
+    {
+        Graphics g(dc);
+        g.SetSmoothingMode(SmoothingModeAntiAlias);
+        const RECT& r = m_desktops[m_hotDesktop].rect;
+        SolidBrush dropFill(Color(70, 0, 120, 215));
+        g.FillRectangle(&dropFill, r.left, r.top, DeskW, DeskH);
+        Pen dropPen(Color(255, 0, 120, 215), 3.5f);
+        StrokeRound(g, dropPen, r.left, r.top, DeskW, DeskH, 9);
+    }
+
+    BitBlt(screen, 0, 0, w, h, dc, 0, 0, SRCCOPY);
+    SelectObject(dc, old);
+    DeleteObject(bmp);
+    DeleteDC(dc);
+    ReleaseDC(m_hwnd, screen);
 }
 
 void TaskView::EndDrag()
 {
     KillTimer(m_hwnd, 1);
+    if (m_dragSceneBmp) { DeleteObject(m_dragSceneBmp); m_dragSceneBmp = nullptr; }
     m_dragHwnd = nullptr;
     m_dragAnim = 0.0;
 }
@@ -1347,6 +1435,12 @@ LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
+    case WM_TABLET_QUERYSYSTEMGESTURESTATUS:
+        // Turn off press-and-hold (and flick) detection so a touch drag begins
+        // immediately instead of waiting out the right-click gesture timer.
+        return TABLET_DISABLE_PRESSANDHOLD | TABLET_DISABLE_PENTAPFEEDBACK |
+               TABLET_DISABLE_PENBARRELFEEDBACK | TABLET_DISABLE_FLICKS;
+
     case WM_TIMER:
         if (wParam == 1 && m_dragging)
         {
@@ -1361,7 +1455,7 @@ LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
         PAINTSTRUCT ps;
         BeginPaint(hwnd, &ps);
-        Render();
+        if (m_dragging && m_dragSceneBmp) DragPaint(); else Render();
         EndPaint(hwnd, &ps);
         return 0;
     }
