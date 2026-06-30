@@ -69,6 +69,9 @@ private:
     void UnregisterThumbnails();
     void BuildDesktopThumbnails(); // live mini-previews of each desktop's windows
     void Render();
+    void PaintScene(HDC dc, int w, int h); // draws the full overlay into a DC
+    void BuildDragScene();                 // caches the static scene when a drag begins
+    void DragPaint();                      // fast per-move paint: blit cache + drop highlight
 
     // Fit `count` tiles of body aspect into `area`, returning per-tile rects
     // (rows centered). Never overflows: shrinks tiles until everything fits.
@@ -147,4 +150,10 @@ private:
     HWND m_dragHwnd = nullptr; // the window whose live thumbnail floats with the cursor
     RECT m_dragOrigBody{}; // the tile body the dragged thumbnail lifted from
     double m_dragAnim = 0.0; // 0..1 lift animation (tile -> floating)
+
+    // Static scene cached at drag start so each mouse-move is a cheap blit + a
+    // single drop-target highlight, instead of re-rendering the whole overlay.
+    HBITMAP m_dragSceneBmp = nullptr;
+    int m_dragSceneW = 0;
+    int m_dragSceneH = 0;
 };
