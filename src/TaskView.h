@@ -13,6 +13,7 @@
 namespace Gdiplus
 {
     class Image;
+    class Bitmap;
 }
 
 // A full-screen, Task-View-style overlay (Win+Tab) that lays every window out as
@@ -108,6 +109,15 @@ private:
     RECT m_monitor{};
     int m_gridBottom = 0;
     HBITMAP m_background = nullptr; // blurred desktop snapshot drawn behind the grid
+
+    // Per-frame paint caches derived from m_background. Rebuilding these every
+    // paint (a HALFTONE StretchBlt of the full-res wallpaper and a fresh GDI+
+    // bitmap copy) made dragging crawl, so they are computed once and reused.
+    HBITMAP m_backdropClient = nullptr; // m_background pre-scaled to the client rect
+    int m_backdropW = 0;
+    int m_backdropH = 0;
+    Gdiplus::Bitmap* m_bgBmpCache = nullptr; // GDI+ wrapper of m_background for title sampling
+    void InvalidateBackdropCache();
 
     std::vector<AppGroup> m_groups;
     std::vector<Cell> m_cells;

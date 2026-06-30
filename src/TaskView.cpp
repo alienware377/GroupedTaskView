@@ -153,8 +153,22 @@ void TaskView::CreateOverlayWindow()
 // acrylic backdrop behind the grid (and behind the tile title bars). Uses a true
 // GDI+ Gaussian blur (smooth, never blocky) with a radius that scales with the
 // screen size, so the blur looks the same on 1080p and 4K.
+void TaskView::InvalidateBackdropCache()
+{
+    if (m_backdropClient)
+    {
+        DeleteObject(m_backdropClient);
+        m_backdropClient = nullptr;
+    }
+    m_backdropW = 0;
+    m_backdropH = 0;
+    delete m_bgBmpCache;
+    m_bgBmpCache = nullptr;
+}
+
 void TaskView::CaptureBlurredBackground()
 {
+    InvalidateBackdropCache();
     if (m_background)
     {
         DeleteObject(m_background);
@@ -301,6 +315,7 @@ void TaskView::Close()
     m_visible = false;
     UnregisterThumbnails();
     ShowWindow(m_hwnd, SW_HIDE);
+    InvalidateBackdropCache();
     if (m_background)
     {
         DeleteObject(m_background);
@@ -804,17 +819,36 @@ void TaskView::Render()
     HBITMAP old = static_cast<HBITMAP>(SelectObject(dc, bmp));
 
     // Blurred wallpaper as the backdrop, stretched to the client rect so it fills
-    // exactly regardless of any DPI scaling (fall back to flat dark).
+    // exactly regardless of any DPI scaling (fall back to flat dark). The costly
+    // HALFTONE stretch of the full-res wallpaper is done once into a client-sized
+    // cache; every paint after that is a plain (fast) blit, so dragging stays
+    // smooth instead of re-resampling 8 megapixels per mouse move.
     if (m_background)
     {
-        const int bw = m_monitor.right - m_monitor.left;
-        const int bh = m_monitor.bottom - m_monitor.top;
-        HDC bgdc = CreateCompatibleDC(screen);
-        HBITMAP oldbg = static_cast<HBITMAP>(SelectObject(bgdc, m_background));
-        SetStretchBltMode(dc, HALFTONE);
-        StretchBlt(dc, 0, 0, w, h, bgdc, 0, 0, bw, bh, SRCCOPY);
-        SelectObject(bgdc, oldbg);
-        DeleteDC(bgdc);
+        if (!m_backdropClient || m_backdropW != w || m_backdropH != h)
+        {
+            InvalidateBackdropCache();
+            const int bw = m_monitor.right - m_monitor.left;
+            const int bh = m_monitor.bottom - m_monitor.top;
+            m_backdropClient = CreateCompatibleBitmap(screen, w, h);
+            HDC cdc = CreateCompatibleDC(screen);
+            HBITMAP oc = static_cast<HBITMAP>(SelectObject(cdc, m_backdropClient));
+            HDC bgdc = CreateCompatibleDC(screen);
+            HBITMAP oldbg = static_cast<HBITMAP>(SelectObject(bgdc, m_background));
+            SetStretchBltMode(cdc, HALFTONE);
+            StretchBlt(cdc, 0, 0, w, h, bgdc, 0, 0, bw, bh, SRCCOPY);
+            SelectObject(bgdc, oldbg);
+            DeleteDC(bgdc);
+            SelectObject(cdc, oc);
+            DeleteDC(cdc);
+            m_backdropW = w;
+            m_backdropH = h;
+        }
+        HDC cdc = CreateCompatibleDC(screen);
+        HBITMAP oc = static_cast<HBITMAP>(SelectObject(cdc, m_backdropClient));
+        BitBlt(dc, 0, 0, w, h, cdc, 0, 0, SRCCOPY);
+        SelectObject(cdc, oc);
+        DeleteDC(cdc);
     }
     else
     {
@@ -858,11 +892,13 @@ void TaskView::Render()
 
         // Title bars are a darkened slice of the same blurred wallpaper, like the
         // native Task View. Sample it from the backdrop bitmap (scaled to client).
-        std::unique_ptr<Bitmap> bgBmp;
-        if (m_background)
+        // Cached once (FromHBITMAP copies the whole bitmap, far too costly to do
+        // on every paint while dragging). Lives until the backdrop changes.
+        if (m_background && !m_bgBmpCache)
         {
-            bgBmp.reset(Bitmap::FromHBITMAP(m_background, nullptr));
+            m_bgBmpCache = Bitmap::FromHBITMAP(m_background, nullptr);
         }
+        Bitmap* bgBmp = m_bgBmpCache;
         const int bgW = m_monitor.right - m_monitor.left;
         const int bgH = m_monitor.bottom - m_monitor.top;
         auto acrylicTitle = [&](int x, int y, int tw) {
@@ -877,7 +913,7 @@ void TaskView::Render()
             if (bgBmp && w > 0 && h > 0)
             {
                 const REAL sx = static_cast<REAL>(bgW) / w, sy = static_cast<REAL>(bgH) / h;
-                g.DrawImage(bgBmp.get(), RectF(static_cast<REAL>(x), static_cast<REAL>(y), static_cast<REAL>(tw), static_cast<REAL>(TitleBar)),
+                g.DrawImage(bgBmp, RectF(static_cast<REAL>(x), static_cast<REAL>(y), static_cast<REAL>(tw), static_cast<REAL>(TitleBar)),
                             x * sx, y * sy, tw * sx, TitleBar * sy, UnitPixel);
             }
             SolidBrush tint(Color(140, 14, 14, 20));
