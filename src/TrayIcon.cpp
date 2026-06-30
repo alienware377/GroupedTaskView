@@ -2,6 +2,7 @@
 #include "TrayIcon.h"
 #include "resource.h"
 #include "SettingsWindow.h"
+#include "Settings.h"
 
 namespace
 {
@@ -10,6 +11,7 @@ namespace
     constexpr UINT ID_TRAY_EXIT = 1;
     constexpr UINT ID_TRAY_TITLE = 2;
     constexpr UINT ID_TRAY_SETTINGS = 3;
+    constexpr UINT ID_TRAY_OVERRIDE = 4;
 }
 
 bool TrayIcon::Create(HINSTANCE hinstance, DWORD mainThreadId)
@@ -84,6 +86,10 @@ LRESULT TrayIcon::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         {
             ShowSettingsWindow(m_hinstance);
         }
+        else if (LOWORD(wParam) == ID_TRAY_OVERRIDE)
+        {
+            Settings::SetOverrideSystemTaskView(!Settings::OverrideSystemTaskView());
+        }
         return 0;
 
     default:
@@ -99,6 +105,8 @@ void TrayIcon::ShowMenu()
     HMENU menu = CreatePopupMenu();
     AppendMenuW(menu, MF_STRING | MF_GRAYED, ID_TRAY_TITLE, L"Grouped Task View — running");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING | (Settings::OverrideSystemTaskView() ? MF_CHECKED : MF_UNCHECKED),
+                ID_TRAY_OVERRIDE, L"Replace system Task View (taskbar button, swipe)");
     AppendMenuW(menu, MF_STRING, ID_TRAY_SETTINGS, L"Settings…");
     AppendMenuW(menu, MF_STRING, ID_TRAY_EXIT, L"Exit");
 

@@ -81,6 +81,20 @@ namespace Settings
         }
     }
 
+    bool OverrideSystemTaskView()
+    {
+        const std::wstring path = FilePath();
+        if (path.empty()) return false;
+        return GetPrivateProfileIntW(L"General", L"OverrideSystemTaskView", 0, path.c_str()) != 0;
+    }
+
+    void SetOverrideSystemTaskView(bool enabled)
+    {
+        const std::wstring path = FilePath();
+        if (path.empty()) return;
+        WritePrivateProfileStringW(L"General", L"OverrideSystemTaskView", enabled ? L"1" : L"0", path.c_str());
+    }
+
     bool ApplyRules(const std::vector<GroupRule>& rules,
                     const std::wstring& identity,
                     const std::wstring& appName,

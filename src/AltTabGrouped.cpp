@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "AltTabGrouped.h"
 #include "Logging.h"
+#include "Settings.h"
 
 namespace
 {
@@ -9,7 +10,28 @@ namespace
     enum ControlMessage : UINT
     {
         WM_ATG_TOGGLE = WM_APP + 1,
+        WM_ATG_OVERRIDE = WM_APP + 2,
     };
+
+    // True if `hwnd` is the shell's built-in Task View window. The host class is
+    // shared by other shell surfaces (Alt+Tab, widgets), so for that class we
+    // also require the "Task View" title; the older Win10 frame is unambiguous.
+    bool IsSystemTaskView(HWND hwnd)
+    {
+        wchar_t cls[128] = {};
+        GetClassNameW(hwnd, cls, ARRAYSIZE(cls));
+        if (wcscmp(cls, L"MultitaskingViewFrame") == 0)
+        {
+            return true;
+        }
+        if (wcscmp(cls, L"XamlExplorerHostIslandWindow") == 0)
+        {
+            wchar_t title[128] = {};
+            GetWindowTextW(hwnd, title, ARRAYSIZE(title));
+            return wcsstr(title, L"Task View") != nullptr;
+        }
+        return false;
+    }
 }
 
 AltTabGrouped* AltTabGrouped::s_instance = nullptr;
@@ -51,6 +73,13 @@ void AltTabGrouped::HookThreadMain()
         Logger::info(L"AltTabGrouped keyboard hook installed (Win+Tab) on dedicated thread");
     }
 
+    // Out-of-context WinEvent hook to catch the system Task View opening by means
+    // other than Win+Tab. Its callbacks are delivered on this thread's queue,
+    // which is pumped below, so it never blocks the main thread.
+    m_winEventHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
+                                     nullptr, WinEventProc, 0, 0,
+                                     WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+
     if (m_hookReady)
     {
         SetEvent(m_hookReady);
@@ -65,11 +94,44 @@ void AltTabGrouped::HookThreadMain()
         DispatchMessageW(&msg);
     }
 
+    if (m_winEventHook)
+    {
+        UnhookWinEvent(m_winEventHook);
+        m_winEventHook = nullptr;
+    }
     if (m_keyboardHook)
     {
         UnhookWindowsHookEx(m_keyboardHook);
         m_keyboardHook = nullptr;
     }
+}
+
+void CALLBACK AltTabGrouped::WinEventProc(HWINEVENTHOOK, DWORD event, HWND hwnd, LONG, LONG, DWORD, DWORD)
+{
+    if (event == EVENT_SYSTEM_FOREGROUND && hwnd && s_instance)
+    {
+        s_instance->OnForegroundChanged(hwnd);
+    }
+}
+
+void AltTabGrouped::OnForegroundChanged(HWND hwnd)
+{
+    if (!IsSystemTaskView(hwnd) || !Settings::OverrideSystemTaskView())
+    {
+        return;
+    }
+
+    // Dismiss the shell's Task View (Esc), then ask the main thread to open ours.
+    // Esc is injected, so our own keyboard hook ignores it (LLKHF_INJECTED).
+    INPUT esc[2] = {};
+    esc[0].type = INPUT_KEYBOARD;
+    esc[0].ki.wVk = VK_ESCAPE;
+    esc[1].type = INPUT_KEYBOARD;
+    esc[1].ki.wVk = VK_ESCAPE;
+    esc[1].ki.dwFlags = KEYEVENTF_KEYUP;
+    SendInput(ARRAYSIZE(esc), esc, sizeof(INPUT));
+
+    PostMessageW(m_controlWnd, WM_ATG_OVERRIDE, 0, 0);
 }
 
 AltTabGrouped::~AltTabGrouped()
@@ -179,6 +241,14 @@ LRESULT AltTabGrouped::ControlWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
     {
     case WM_ATG_TOGGLE:
         m_taskView.Toggle();
+        return 0;
+    case WM_ATG_OVERRIDE:
+        // Replace the just-dismissed system Task View; don't toggle ours closed
+        // if it somehow already stands open.
+        if (!m_taskView.Visible())
+        {
+            m_taskView.Toggle();
+        }
         return 0;
     default:
         return DefWindowProcW(hwnd, msg, wParam, lParam);
