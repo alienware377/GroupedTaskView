@@ -20,6 +20,12 @@ namespace Settings
     std::vector<GroupRule> LoadRules();
     void SaveRules(const std::vector<GroupRule>& rules);
 
+    // When true, the grouped overlay also replaces the system Task View when it
+    // is opened by means other than the Win+Tab keyboard shortcut (the taskbar
+    // Task View button, the touch edge-swipe gesture, etc.).
+    bool OverrideSystemTaskView();
+    void SetOverrideSystemTaskView(bool enabled);
+
     // If a rule matches, fills outKey (a merge key) and outName and returns true.
     bool ApplyRules(const std::vector<GroupRule>& rules,
                     const std::wstring& identity,

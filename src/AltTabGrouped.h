@@ -36,6 +36,12 @@ private:
     void HookThreadMain(); // owns the keyboard hook + its message pump
     static void SuppressStartMenu();
 
+    // Watches for the system Task View opening by non-keyboard means (taskbar
+    // button, touch swipe) so we can dismiss it and show our overlay instead,
+    // when the user has enabled that option.
+    static void CALLBACK WinEventProc(HWINEVENTHOOK, DWORD event, HWND, LONG, LONG, DWORD, DWORD);
+    void OnForegroundChanged(HWND hwnd);
+
     HINSTANCE m_hinstance = nullptr;
     DWORD m_mainThreadId = 0;
     HWND m_controlWnd = nullptr;
@@ -45,6 +51,7 @@ private:
     std::thread m_hookThread;
     DWORD m_hookThreadId = 0;
     HHOOK m_keyboardHook = nullptr;
+    HWINEVENTHOOK m_winEventHook = nullptr;
     HANDLE m_hookReady = nullptr;
 
     TaskView m_taskView;
