@@ -15,7 +15,7 @@ Press <kbd>Win</kbd>+<kbd>Tab</kbd> and get a Task-View-style overlay where ever
 
 <br />
 
-<img src="assets/media/demo-1.gif" width="820" alt="Grouped Task View in action — windows clustered by app, live thumbnails, virtual-desktop strip" />
+<img src="assets/media/demo-1.webp" width="820" alt="Grouped Task View in action — windows clustered by app, live thumbnails, virtual-desktop strip" />
 
 </div>
 
@@ -44,7 +44,7 @@ Windows' built-in **Task View** (<kbd>Win</kbd>+<kbd>Tab</kbd>) shows every wind
 | **Grouped overlay** — one tile per app, with live thumbnails and the virtual-desktop strip along the bottom. | **Drag to another desktop** — lift a window or whole app group and drop it on a desktop in the strip. |
 
 <p align="center">
-  <img src="assets/media/demo-2.gif" width="820" alt="Navigating the grouped overlay and moving windows between desktops" />
+  <img src="assets/media/demo-2.webp" width="820" alt="Navigating the grouped overlay and moving windows between desktops" />
 </p>
 
 ## Install
