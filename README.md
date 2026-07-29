@@ -85,4 +85,4 @@ Use **Settings → Apps → Installed apps → Grouped Task View**, or run `unin
 
 ---
 
-<sub>Keywords: Windows Win+Tab replacement, group windows by app, Task View alternative, window switcher, alt-tab grouping, virtual desktops, productivity.</sub>
+<sub>Keywords: Windows Win+Tab replacement, group windows by app, Task View alternative, window switcher, alt-tab grouping, virtual desktops, productivity, Microsoft Powertoys, grouped taskview, powertoys grouped taskview, win 10 grouped taskview, win 11 taskview groups, win10 taskview grouping, win11 group taskview apps .</sub>
