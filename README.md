@@ -2,7 +2,7 @@
 
 <img src="assets/icon.png" width="120" alt="Grouped Task View logo" />
 
-# Grouped Task View
+# Microsoft PowerToys App - Grouped Task View
 
 **A Win+Tab replacement for Windows 10 & 11 that groups your open windows by application.**
 
