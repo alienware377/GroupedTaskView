@@ -13,6 +13,10 @@ Press <kbd>Win</kbd>+<kbd>Tab</kbd> and get a Task-View-style overlay where ever
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D7)
 
+<br />
+
+<img src="assets/media/demo-1.gif" width="820" alt="Grouped Task View in action — windows clustered by app, live thumbnails, virtual-desktop strip" />
+
 </div>
 
 ## What it does
@@ -31,6 +35,17 @@ Windows' built-in **Task View** (<kbd>Win</kbd>+<kbd>Tab</kbd>) shows every wind
 - 🪶 **Tiny and self-contained** — a single ~250 KB executable, no runtime or dependencies, no telemetry.
 - 🔔 **System tray icon** — quit anytime from the notification area, or turn on **Replace system Task View**.
 - 🔁 **Optionally replace Task View everywhere** — by default the overlay opens on <kbd>Win</kbd>+<kbd>Tab</kbd>. Toggle **Replace system Task View** in the tray menu and it also takes over when Task View is opened by other means — the taskbar **Task View** button or the touch edge-swipe gesture.
+
+## Screenshots
+
+|  |  |
+|---|---|
+| ![Grouped overlay — one tile per app, multi-window apps stacked with a count badge](assets/media/grouped-overlay.png) | ![Dragging a window toward the virtual-desktop strip to move it](assets/media/drag-to-desktop.png) |
+| **Grouped overlay** — one tile per app, with live thumbnails and the virtual-desktop strip along the bottom. | **Drag to another desktop** — lift a window or whole app group and drop it on a desktop in the strip. |
+
+<p align="center">
+  <img src="assets/media/demo-2.gif" width="820" alt="Navigating the grouped overlay and moving windows between desktops" />
+</p>
 
 ## Install
 
