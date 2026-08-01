@@ -40,8 +40,8 @@ Windows' built-in **Task View** (<kbd>Win</kbd>+<kbd>Tab</kbd>) shows every wind
 
 |  |  |
 |---|---|
-| ![Grouped overlay — one tile per app, multi-window apps stacked with a count badge](assets/media/grouped-overlay.png) | ![Dragging a window toward the virtual-desktop strip to move it](assets/media/drag-to-desktop.png) |
-| **Grouped overlay** — one tile per app, with live thumbnails and the virtual-desktop strip along the bottom. | **Drag to another desktop** — lift a window or whole app group and drop it on a desktop in the strip. |
+| ![Grouped overlay — one tile per app, multi-window apps stacked with a count badge](assets/media/grouped-overlay.png) | ![Expanded Chrome group — several Chrome windows spread out from their stack](assets/media/drag-to-desktop.png) |
+| **Grouped overlay** — one tile per app, with live thumbnails and the virtual-desktop strip along the bottom. | **Expanded app group** — click a stack (here Chrome's auto-grouped windows) to fan out its windows and pick one. |
 
 <p align="center">
   <img src="assets/media/demo-2.webp" width="820" alt="Navigating the grouped overlay and moving windows between desktops" />
