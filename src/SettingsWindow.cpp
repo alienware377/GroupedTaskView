@@ -83,7 +83,7 @@ namespace
 
             MakeStatic(hwnd, hi,
                        L"Group windows by app. Add a rule to rename a group, or to merge apps: any window whose "
-                       L"app name or .exe contains “Match” is placed in “Group name”. Give several "
+                       L"app name or .exe contains \u201CMatch\u201D is placed in \u201CGroup name\u201D. Give several "
                        L"rules the same Group name to merge those apps together.",
                        16, 12, 588, 56);
 
@@ -224,7 +224,7 @@ void ShowSettingsWindow(HINSTANCE hinstance, const wchar_t* prefillMatch, const 
     const int w = 636, h = 452;
     const int x = (GetSystemMetrics(SM_CXSCREEN) - w) / 2;
     const int y = (GetSystemMetrics(SM_CYSCREEN) - h) / 2;
-    g_wnd = CreateWindowExW(0, kClass, L"Grouped Task View — Settings",
+    g_wnd = CreateWindowExW(0, kClass, L"Grouped Task View: Settings",
                             WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
                             x, y, w, h, nullptr, nullptr, hinstance, nullptr);
     if (g_wnd)

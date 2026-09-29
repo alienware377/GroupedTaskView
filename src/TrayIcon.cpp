@@ -103,11 +103,11 @@ void TrayIcon::ShowMenu()
     GetCursorPos(&pt);
 
     HMENU menu = CreatePopupMenu();
-    AppendMenuW(menu, MF_STRING | MF_GRAYED, ID_TRAY_TITLE, L"Grouped Task View — running");
+    AppendMenuW(menu, MF_STRING | MF_GRAYED, ID_TRAY_TITLE, L"Grouped Task View (running)");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING | (Settings::OverrideSystemTaskView() ? MF_CHECKED : MF_UNCHECKED),
                 ID_TRAY_OVERRIDE, L"Replace system Task View (taskbar button, swipe)");
-    AppendMenuW(menu, MF_STRING, ID_TRAY_SETTINGS, L"Settings…");
+    AppendMenuW(menu, MF_STRING, ID_TRAY_SETTINGS, L"Settings\u2026");
     AppendMenuW(menu, MF_STRING, ID_TRAY_EXIT, L"Exit");
 
     // Required so the menu dismisses correctly when the user clicks elsewhere.

@@ -1656,10 +1656,10 @@ LRESULT TaskView::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 const AppGroup& grp = m_groups[m_cells[cell].group];
                 const std::wstring name = grp.name;
                 const std::wstring match = grp.matchHint.empty() ? grp.name : grp.matchHint;
-                const std::wstring renameLabel = L"Rename “" + name + L"”…";
+                const std::wstring renameLabel = L"Rename \u201C" + name + L"\u201D\u2026";
                 HMENU menu = CreatePopupMenu();
                 AppendMenuW(menu, MF_STRING, 1, renameLabel.c_str());
-                AppendMenuW(menu, MF_STRING, 2, L"Settings…");
+                AppendMenuW(menu, MF_STRING, 2, L"Settings\u2026");
                 POINT scr = pt;
                 ClientToScreen(hwnd, &scr);
                 SetForegroundWindow(hwnd);
